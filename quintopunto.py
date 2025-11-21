@@ -22,13 +22,12 @@ node_type = np.full(49, 'Interno', dtype=object)
 node_type[(coords[:,0]==0) | (coords[:,0]==1) | (coords[:,1]==0) | (coords[:,1]==1)] = 'Dirichlet'
 node_type[dist < r] = 'Externo'
 
-# Detectar nodos Neumann
+# Detectar nodos Neumann (vecinos al hueco)
 def ij_to_k(i,j): return i*n + j
 for i in range(n):
     for j in range(n):
         k = ij_to_k(i,j)
         if node_type[k] != 'Interno': continue
-        # Si un vecino cae dentro del círculo → es Neumann
         for ii,jj in [(i+1,j),(i-1,j),(i,j+1),(i,j-1)]:
             if 0 <= ii < n and 0 <= jj < n:
                 kk = ij_to_k(ii,jj)
@@ -53,36 +52,29 @@ for i in range(n):
     for j in range(n):
         k = ij_to_k(i,j)
         row = idx_map[k]
-        if row == -1: continue
+        if row == -1: 
+            continue
 
         tipo = node_type[k]
 
-        # -----------------------------
         # Dirichlet
-        # -----------------------------
         if tipo == 'Dirichlet':
             A[row,row] = 1.0
             b[row] = 0.0
             continue
 
-        # Coordenadas
         xk, yk = coords[k]
 
-        # -----------------------------
         # Neumann
-        # -----------------------------
         if tipo == 'Neumann':
-            # normal geométrica
             nx = (xk - center[0])/dist[k]
             ny = (yk - center[1])/dist[k]
 
-            # vecinos
             west  = ij_to_k(i, j-1)
             east  = ij_to_k(i, j+1)
             south = ij_to_k(i-1, j)
             north = ij_to_k(i+1, j)
 
-            # Ecuación normal
             if idx_map[east]  != -1: A[row, idx_map[east]]  += nx/(2*h)
             if idx_map[west]  != -1: A[row, idx_map[west]]  -= nx/(2*h)
             if idx_map[north] != -1: A[row, idx_map[north]] += ny/(2*h)
@@ -91,20 +83,26 @@ for i in range(n):
             b[row] = 0.0
             continue
 
-        # -----------------------------
         # Interno: Laplaciano 5 puntos
-        # -----------------------------
-        neighbors = [
-            ij_to_k(i,j),        # centro
-            ij_to_k(i,j-1),      # west
-            ij_to_k(i,j+1),      # east
-            ij_to_k(i-1,j),      # south
-            ij_to_k(i+1,j)       # north
-        ]
-
         A[row,row] = 4/h**2
-        for nb in neighbors[1:]:
-            if idx_map[nb] != -1:
-                A[row, idx_map[nb]] = -1/h**2
+
+        for (ii,jj) in [(i,j-1),(i,j+1),(i-1,j),(i+1,j)]:
+            nb = ij_to_k(ii,jj)
+            if 0 <= ii < n and 0 <= jj < n:
+                if idx_map[nb] != -1:
+                    A[row, idx_map[nb]] = -1/h**2
 
         b[row] = 0.0
+
+# -------- SALIDA ---------
+print("\n===== CLASIFICACIÓN DE NODOS =====")
+for k in range(49):
+    print(f"Nodo {k:2d}: ({coords[k,0]:.3f}, {coords[k,1]:.3f}) -> {node_type[k]}  idx={idx_map[k]}")
+
+print("\n===== MATRIZ A =====")
+print(A)
+
+print("\n===== VECTOR b =====")
+print(b)
+
+print("\nFIN DEL PROGRAMA ✔")
